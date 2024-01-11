@@ -8,75 +8,118 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import javax.swing.ImageIcon;
 import javax.swing.JPanel;
-import javax.swing.JLabel;
 import javax.swing.Timer;
+import javax.swing.JLabel;
 
 public class MyPanel extends JPanel implements ActionListener{
 	
-	//Initial values
-	
 	final int PANEL_WIDTH = 1280;
 	final int PANEL_HEIGHT = 720;
-	Image ground;
-	Image wall;
-	Image smallBlock;
-	Image bigBlock;
+	Block small;
+	Block big;
+	Image smallImg;
+	Image bigImg;
 	Timer timer;
-	int xsmall = 100;
-	int ysmall = 550;
-	int xbig = 1000;
-	int ybig = 400;
-	double bV = 3;
-	double realbV = 2;
-	double sV = 0;
-	double realsV = 0;
-	int count = 0;
-	
-	double massbig = 100;
-	double masssmall = 1;
+	int xSmall = 100;	//Separation of 450 pixels from the right side of the small cube to the left side of the big cube.
+	int xBig = 700;
+	int ySmall = 620;
+	int yBig = 470;
+	double bigV = -3.0;		//initial big block velocity
+	int collisionCounter = 0;
 	
 	MyPanel(){
-		this.setPreferredSize(new Dimension(PANEL_WIDTH, PANEL_HEIGHT));		//Setting size of panel/window
-		this.setBackground(new Color(33, 33, 33));								//Setting background color
-		smallBlock = new ImageIcon("block1.png").getImage();					//making image objects
-		bigBlock = new ImageIcon("block2.png").getImage();
-		timer = new Timer(5, this);
+		//Initializing and creating graphical elements.
+		this.setBackground(new Color(0, 0, 0));
+		this.setPreferredSize(new Dimension(PANEL_WIDTH, PANEL_HEIGHT));
+		smallImg = new ImageIcon("piBlockSmall.png").getImage();
+		bigImg = new ImageIcon("piBlockMedium.png").getImage();
 		
-		timer.start();															//Creating timer to activate action listener
+		//Creating blocks and simulation object to utilizae the blocks.
+		small = new Block(xSmall, 50, 1.0, 0.0);	//Small block only has a width of 50, a weight of 1kg, and 0 velocity.
+		big = new Block(xBig, 200, 10000.0, bigV);		//Big block has a width of 200, a weight of 1kg, and a velocity of 2m/s to the left.
 		
+		timer = new Timer(10, this); 
+		timer.start();
 	}
 	
 	public void paint(Graphics g) {
-		
-		super.paint(g);															//Paints background
-		Graphics2D g2D = (Graphics2D) g;
-		g2D.drawImage(smallBlock, xsmall, ysmall, null);						//Paints the two blocks
-		g2D.drawImage(bigBlock, xbig, ybig, null);
-		
-		g2D.setFont(new Font("Ink Free", Font.BOLD, 30));						//Creating the collision counter label
-		g2D.setPaint(Color.LIGHT_GRAY);
-		g2D.drawString("Collisions: " + String.valueOf(count), 1000, 30);
-		
+		//Painting the objects on the screen;
+		super.paint(g);
+		Graphics g2D = (Graphics2D) g;
+		//Things get graphically weird with large objects, so this reduces how badly the blocks look visually when colliding near the edge of the screen.
+		if(xSmall >= 0) {
+			g2D.drawImage(smallImg, xSmall, ySmall, null);
+		}
+		else {
+			g2D.drawImage(smallImg, 0, ySmall, null);
+		}
+		g2D.drawImage(bigImg, xBig, yBig, null);
+		g2D.setFont(new Font("Ink Free", Font.BOLD, 30));
+		g2D.setColor(Color.WHITE);
+		g2D.drawString("Collisions: " + String.valueOf(collisionCounter), 1000, 30);
 	}
-
+	
 	@Override
 	public void actionPerformed(ActionEvent e) {
-		// TODO Auto-generated method stub
-		if(xbig<= (xsmall + 100)){
-			realbV = ((((massbig-masssmall)/(massbig+masssmall))*realbV) + (((2*masssmall)/(massbig+masssmall))*realsV));
-			realsV = ((((2*massbig)/(massbig+masssmall))*realbV) + (((masssmall-massbig)/(massbig+masssmall))*realsV));
-			bV = realbV;
-			sV = realsV;
-			System.out.println(sV);
-			count++;
+		//First run big block's actions
+		if(big.getVelocity() < 0.0) {													//Check if big block's velocity points to the left
+			if(big.getX() <= small.getX() + small.getWidth()) {		//Check for collision with small block
+				collision();
+			}
+			else {													//If there's no collision, continue moving on.
+				big.move();
+				xBig = (int)Math.round(big.getX());
+			}
 		}
-		if(xsmall <= 0) {
-			sV = (int)(sV*-1);
+		else if(big.getVelocity() >= 0.0){														//If it points to the right, let it move right.
+			big.move();
+			xBig = (int)Math.round(big.getX());
 		}
 		
-		xbig -= bV;
-		xsmall -= sV;
+		//Next to check small block's behavior
+		if(small.getVelocity() < 0) {								//check if velocity points left
+			if(small.getX() <= 0) {									//If momentum is left, but against the wall, bounce right
+				small.setVelocity(-1 * small.getVelocity());
+				collisionCounter++;
+				if(small.getX()+small.getWidth() >= big.getX()) {	//test section
+					collision();
+				}
+			}
+			else {													//If it isn't against the wall, then it can move left
+				small.move();
+				xSmall = (int)Math.round(small.getX());
+			}
+		}
+		else if(small.getVelocity() > 0){							//Next is to check if the big block is right next to the small one
+			if(small.getX()+small.getWidth() >= big.getX()) {
+				collision();
+				small.move();
+				xSmall = (int)Math.round(small.getX());
+			}
+			else {
+				small.move();
+				xSmall = (int)Math.round(small.getX());
+			}
+		}
+		
 		repaint();
+	}
+	
+	public void collision() {
+		//recording values from blocks in smaller/easier to use variables.
+		//Made them all double so that calculations would not round to an integer.
+		double mb2 = big.getMass();
+		double ms1 = small.getMass();
+		double bv2 = big.getVelocity();
+		double sv1 = small.getVelocity();
+		
+		//Perfectly elastic collision calculation.
+		double newBigV = ((((2.0*ms1)/(ms1+mb2)) * sv1) + (((mb2-ms1)/(ms1+mb2)) * bv2));
+		double newSmallV = (((ms1-mb2)/(ms1+mb2)) * sv1) + (((2.0*mb2)/(ms1+mb2)) * bv2);
+		big.setVelocity(newBigV);
+		small.setVelocity(newSmallV);
+		
+		collisionCounter++;
 	}
 	
 }
