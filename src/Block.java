@@ -41,7 +41,7 @@ public class Block {
 		velocity = newVelocity;
 	}
 	public void move() {
-		x += velocity;			//every update will be the equivalent of half a second
+		x += velocity;			
 		//
 	}
 }
